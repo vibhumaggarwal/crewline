@@ -47,7 +47,7 @@ The app starts empty. No projects, workers, live activity, progress percentages,
 
 ## Appearance
 
-The interface takes visual inspiration from [America.gov](https://america.gov/): serif headings, a navy accent, soft gray surfaces, and a prominent rounded command input. Use the sun/moon button in the header to switch between light and dark. The choice is saved on this device. Visual tokens and appearance overrides live in `src/theme.css`; base component layout remains in `src/style.css`.
+The interface follows the compact developer-workspace direction of [Conductor](https://www.conductor.build/) and [Codex](https://openai.com/index/introducing-the-codex-app/): system typography, neutral surfaces, flat worker rows, a repository/runtime inspector, and a bottom task composer. Use the sun/moon button in the header to switch between light and dark. The choice is saved on this device. Visual tokens and appearance overrides live in `src/theme.css`; base component layout remains in `src/style.css`.
 
 ## Architecture and source map
 
@@ -65,19 +65,21 @@ React browser UI
                               └─ scoped MCP tools → bridge loopback endpoint
 ```
 
-| File                    | Responsibility                                                                   |
-| ----------------------- | -------------------------------------------------------------------------------- |
-| `src/main.tsx`          | Navigation, command center, forms, worker details, approvals, task/handoff views |
-| `src/style.css`         | Base component layout and responsive behavior                                       |
-| `shared/types.ts`       | Shared project, worker, task, approval and event contracts                       |
-| `server/index.ts`       | Loopback HTTP/SSE server, local authentication, WebSocket bridge connection      |
-| `server/coordinator.ts` | Task lifecycle, dependency scheduling, worker serialization, handoff routing     |
-| `server/store.ts`       | SQLite persistent record store (WAL)                                             |
-| `bridge/cli.ts`         | CLI connection, process lifecycle, approvals, file/test/Git/memory tool handlers |
-| `bridge/runtime.ts`     | Provider interface and Claude Code subprocess adapter                            |
-| `bridge/workspace.ts`   | Git worktrees, path boundaries, durable context construction                     |
-| `bridge/tools.ts`       | MCP tool descriptions and transport adapter used by Claude                       |
-| `tests/`                | Unit and integration tests; fake Claude is test-only                             |
+| File                        | Responsibility                                                                   |
+| --------------------------- | -------------------------------------------------------------------------------- |
+| `src/WorkspaceOverview.tsx` | Workspace tabs, worker register, repository/runtime inspector                    |
+| `src/theme.css`             | Light/dark visual tokens and responsive workspace styling                        |
+| `src/main.tsx`              | Navigation, command center, forms, worker details, approvals, task/handoff views |
+| `src/style.css`             | Base component layout and responsive behavior                                    |
+| `shared/types.ts`           | Shared project, worker, task, approval and event contracts                       |
+| `server/index.ts`           | Loopback HTTP/SSE server, local authentication, WebSocket bridge connection      |
+| `server/coordinator.ts`     | Task lifecycle, dependency scheduling, worker serialization, handoff routing     |
+| `server/store.ts`           | SQLite persistent record store (WAL)                                             |
+| `bridge/cli.ts`             | CLI connection, process lifecycle, approvals, file/test/Git/memory tool handlers |
+| `bridge/runtime.ts`         | Provider interface and Claude Code subprocess adapter                            |
+| `bridge/workspace.ts`       | Git worktrees, path boundaries, durable context construction                     |
+| `bridge/tools.ts`           | MCP tool descriptions and transport adapter used by Claude                       |
+| `tests/`                    | Unit and integration tests; fake Claude is test-only                             |
 
 The provider interface is intentionally small. Only Claude Code is implemented. Its event callback supplies streaming output; start/send/resume use new sessions reconstructed from persistent context rather than depending on an immortal conversation.
 

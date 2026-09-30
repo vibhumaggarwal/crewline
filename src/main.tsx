@@ -41,6 +41,7 @@ import {
 import type { Agent, Approval, Project, Snapshot, Task } from "../shared/types";
 import "./style.css";
 import "./theme.css";
+import { WorkspaceOverview } from "./WorkspaceOverview";
 const empty: Snapshot = {
   projects: [],
   agents: [],
@@ -367,7 +368,7 @@ function App() {
     ) : (
       <Empty
         icon={ListTodo}
-        title="A clear runway"
+        title="No tasks yet"
         text="Assign a task to a worker. Its progress and results will live here."
         action="Create task"
         onClick={() => setModal("task")}
@@ -454,13 +455,10 @@ function App() {
   const commandBar = (
     <footer className="command-dock">
       <div className="command-box">
-        <span className="command-icon">
-          <Command size={19} />
-        </span>
         <textarea
           ref={commandRef}
           aria-label="Team command"
-          placeholder="What should your team work on?"
+          placeholder="Describe a task for your worker…"
           value={command}
           onChange={(e) => setCommand(e.target.value)}
           onKeyDown={(e) => {
@@ -469,35 +467,40 @@ function App() {
               void runCommand();
             }
           }}
-          rows={1}
+          rows={2}
         />
-        <select
-          aria-label="Assign command to worker"
-          value={commandAgent}
-          onChange={(e) => setCommandAgent(e.target.value)}
-        >
-          <option value="">
-            {agents.length ? "Select worker" : "No workers yet"}
-          </option>
-          {agents
-            .filter((a) => a.workspace)
-            .map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-        </select>
-        <button
-          className="send-button"
-          disabled={busy || !command.trim()}
-          aria-label="Assign task"
-          onClick={() => void runCommand()}
-        >
-          <ArrowUpRight size={18} />
-        </button>
+        <div className="composer-controls">
+          <span className="composer-provider">
+            <span>✳</span> Claude Code
+          </span>
+          <select
+            aria-label="Assign command to worker"
+            value={commandAgent}
+            onChange={(e) => setCommandAgent(e.target.value)}
+          >
+            <option value="">
+              {agents.length ? "Select worker" : "No workers yet"}
+            </option>
+            {agents
+              .filter((a) => a.workspace)
+              .map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+          </select>
+          <button
+            className="send-button"
+            disabled={busy || !command.trim()}
+            aria-label="Assign task"
+            onClick={() => void runCommand()}
+          >
+            <ArrowUpRight size={16} />
+          </button>
+        </div>
       </div>
       <div className="command-hint">
-        <span>One instruction. Your team takes it from here.</span>
+        <span>Runs in the selected worker’s worktree</span>
         <span>
           <kbd>⌘ K</kbd> to focus <span>·</span> <kbd>↵</kbd> to assign
         </span>
@@ -548,7 +551,9 @@ function App() {
             navigate("Command Center");
           }}
         >
-          <span className="brand-mark">V</span>
+          <span className="brand-mark">
+            <Command size={16} />
+          </span>
           <span>
             Crewline<small>Personal workspace</small>
           </span>
@@ -556,7 +561,6 @@ function App() {
         </button>
         <div className="nav-group">
           {[
-            [LayoutGrid, "Home"],
             [Command, "Command Center"],
             [Users, "Agents"],
             [ListTodo, "Tasks"],
@@ -568,7 +572,7 @@ function App() {
               onClick={() => navigate(label)}
             >
               <Icon size={17} />
-              <span>{label}</span>
+              <span>{label === "Command Center" ? "Overview" : label}</span>
               {label === "Tasks" &&
                 tasks.filter((t) => !["COMPLETED", "FAILED"].includes(t.status))
                   .length > 0 && (
@@ -683,7 +687,9 @@ function App() {
               {project?.name || "All projects"}
             </button>{" "}
             <ChevronRight size={13} />
-            <strong>{agent?.name || page}</strong>
+            <strong>
+              {agent?.name || (page === "Command Center" ? "Overview" : page)}
+            </strong>
           </span>
           <div className="topbar-right">
             <button
@@ -713,7 +719,7 @@ function App() {
             <span className="user-mini">VA</span>
           </div>
         </header>
-        <main>
+        <main className={isCommandCenter ? "workspace-main" : undefined}>
           {error && (
             <div className="error-banner" role="alert">
               {error}
@@ -937,6 +943,21 @@ function App() {
                 </section>
               )}
             </>
+          ) : isCommandCenter ? (
+            <WorkspaceOverview
+              state={state}
+              project={project}
+              agents={agents}
+              tasks={tasks}
+              onProject={() => setModal("project")}
+              onAgent={() => setModal("agent")}
+              onConnect={() => setModal("connect")}
+              onOpenAgent={viewAgent}
+              onTask={setSelectedTask}
+              renderTasks={taskRows}
+              renderActivity={() => activity()}
+              approvals={approvals.map(approvalCard)}
+            />
           ) : (
             <>
               <div className="page-heading">
@@ -965,7 +986,7 @@ function App() {
                     ) : page === "Agents" ? (
                       "Persistent workers. A clear responsibility for each."
                     ) : page === "Tasks" ? (
-                      "From the first instruction to the final result."
+                      "Assign, monitor, and review worker tasks."
                     ) : page === "Projects" ? (
                       "Your repositories, connected to a dedicated team."
                     ) : page === "Agent Messages" ? (
@@ -1510,7 +1531,7 @@ function App() {
             </>
           )}
         </main>
-        {!isCommandCenter && commandBar}
+        {commandBar}
       </div>
       {notice && (
         <div className="toast" role="status">
