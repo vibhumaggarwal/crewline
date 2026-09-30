@@ -45,6 +45,10 @@ The app starts empty. No projects, workers, live activity, progress percentages,
 | `npm test`        | Boundary, scheduling, Git, and full local bridge integration tests; build first |
 | `npm run format`  | Format source files                                                             |
 
+## Appearance
+
+The interface takes visual inspiration from [America.gov](https://america.gov/): serif headings, a navy accent, soft gray surfaces, and a prominent rounded command input. Use the sun/moon button in the header to switch between light and dark. The choice is saved on this device. Visual tokens and appearance overrides live in `src/theme.css`; base component layout remains in `src/style.css`.
+
 ## Architecture and source map
 
 ```text
@@ -64,7 +68,7 @@ React browser UI
 | File                    | Responsibility                                                                   |
 | ----------------------- | -------------------------------------------------------------------------------- |
 | `src/main.tsx`          | Navigation, command center, forms, worker details, approvals, task/handoff views |
-| `src/style.css`         | Dark theme, compact layouts, responsive UI                                       |
+| `src/style.css`         | Base component layout and responsive behavior                                       |
 | `shared/types.ts`       | Shared project, worker, task, approval and event contracts                       |
 | `server/index.ts`       | Loopback HTTP/SSE server, local authentication, WebSocket bridge connection      |
 | `server/coordinator.ts` | Task lifecycle, dependency scheduling, worker serialization, handoff routing     |

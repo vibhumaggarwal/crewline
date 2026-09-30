@@ -29,6 +29,8 @@ import {
   Search,
   Send,
   Settings,
+  Sun,
+  Moon,
   ShieldCheck,
   Terminal,
   Users,
@@ -38,6 +40,7 @@ import {
 } from "lucide-react";
 import type { Agent, Approval, Project, Snapshot, Task } from "../shared/types";
 import "./style.css";
+import "./theme.css";
 const empty: Snapshot = {
   projects: [],
   agents: [],
@@ -136,6 +139,24 @@ function Avatar({
   );
 }
 function App() {
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    try {
+      return localStorage.getItem("crewline-appearance") === "dark"
+        ? "dark"
+        : "light";
+    } catch {
+      return "light";
+    }
+  });
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", theme === "light" ? "#f8f9fa" : "#111722");
+    try {
+      localStorage.setItem("crewline-appearance", theme);
+    } catch {}
+  }, [theme]);
   const [state, setState] = useState<Snapshot>(empty),
     [authenticated, setAuthenticated] = useState<boolean | null>(null),
     [page, setPage] = useState("Command Center"),
@@ -429,6 +450,60 @@ function App() {
       </div>
     </div>
   );
+  const isCommandCenter = !agent && ["Home", "Command Center"].includes(page);
+  const commandBar = (
+    <footer className="command-dock">
+      <div className="command-box">
+        <span className="command-icon">
+          <Command size={19} />
+        </span>
+        <textarea
+          ref={commandRef}
+          aria-label="Team command"
+          placeholder="What should your team work on?"
+          value={command}
+          onChange={(e) => setCommand(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void runCommand();
+            }
+          }}
+          rows={1}
+        />
+        <select
+          aria-label="Assign command to worker"
+          value={commandAgent}
+          onChange={(e) => setCommandAgent(e.target.value)}
+        >
+          <option value="">
+            {agents.length ? "Select worker" : "No workers yet"}
+          </option>
+          {agents
+            .filter((a) => a.workspace)
+            .map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+        </select>
+        <button
+          className="send-button"
+          disabled={busy || !command.trim()}
+          aria-label="Assign task"
+          onClick={() => void runCommand()}
+        >
+          <ArrowUpRight size={18} />
+        </button>
+      </div>
+      <div className="command-hint">
+        <span>One instruction. Your team takes it from here.</span>
+        <span>
+          <kbd>⌘ K</kbd> to focus <span>·</span> <kbd>↵</kbd> to assign
+        </span>
+      </div>
+    </footer>
+  );
   if (authenticated === null)
     return (
       <div className="login">
@@ -611,6 +686,18 @@ function App() {
             <strong>{agent?.name || page}</strong>
           </span>
           <div className="topbar-right">
+            <button
+              className="icon-button theme-toggle"
+              aria-label={
+                theme === "light"
+                  ? "Switch to dark appearance"
+                  : "Switch to light appearance"
+              }
+              title={theme === "light" ? "Dark appearance" : "Light appearance"}
+              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+            >
+              {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
+            </button>
             <span className={`sync ${stream ? "" : "offline"}`}>
               <span className="dot" />
               {stream ? "Live updates" : "Reconnecting"}
@@ -863,13 +950,13 @@ function App() {
                   </div>
                   <h1>
                     {page === "Home" || page === "Command Center"
-                      ? `${new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 18 ? "Good afternoon" : "Good evening"}, Vibhum`
+                      ? "Hello, Vibhum."
                       : page}
                   </h1>
                   <p>
                     {page === "Home" || page === "Command Center" ? (
                       <>
-                        Your team, in motion.{" "}
+                        Your team. One place to begin.{" "}
                         <span className="heading-summary">
                           {working} working <span>·</span> {waiting} waiting{" "}
                           <span>·</span> {approvals.length} needs you
@@ -920,6 +1007,7 @@ function App() {
                   ) : null}
                 </div>
               </div>
+              {isCommandCenter && commandBar}
               {["Home", "Command Center"].includes(page) && (
                 <>
                   <div className="overview-strip">
@@ -1166,7 +1254,7 @@ function App() {
                           <ShieldCheck size={25} />
                         </span>
                       </div>
-                      <h2>A workspace for your AI team</h2>
+                      <h2>Good work starts with a team.</h2>
                       <p>
                         Connect a repository, create your first worker,
                         <br />
@@ -1422,57 +1510,7 @@ function App() {
             </>
           )}
         </main>
-        <footer className="command-dock">
-          <div className="command-box">
-            <span className="command-icon">
-              <Command size={19} />
-            </span>
-            <textarea
-              ref={commandRef}
-              aria-label="Team command"
-              placeholder="What should your team work on?"
-              value={command}
-              onChange={(e) => setCommand(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void runCommand();
-                }
-              }}
-              rows={1}
-            />
-            <select
-              aria-label="Assign command to worker"
-              value={commandAgent}
-              onChange={(e) => setCommandAgent(e.target.value)}
-            >
-              <option value="">
-                {agents.length ? "Select worker" : "No workers yet"}
-              </option>
-              {agents
-                .filter((a) => a.workspace)
-                .map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-            </select>
-            <button
-              className="send-button"
-              disabled={busy || !command.trim()}
-              aria-label="Assign task"
-              onClick={() => void runCommand()}
-            >
-              <ArrowUpRight size={18} />
-            </button>
-          </div>
-          <div className="command-hint">
-            <span>One instruction. Your team takes it from here.</span>
-            <span>
-              <kbd>⌘ K</kbd> to focus <span>·</span> <kbd>↵</kbd> to assign
-            </span>
-          </div>
-        </footer>
+        {!isCommandCenter && commandBar}
       </div>
       {notice && (
         <div className="toast" role="status">
