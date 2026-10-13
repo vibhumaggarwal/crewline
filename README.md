@@ -2,14 +2,13 @@
 
 A local command center for persistent Claude Code workers. This is a working V0 codebase, not a seeded activity demo.
 
-**Project location:** `/Users/vibhumaggarwal/Projects/crewline`
-
 ## Start here
 
 Requires Node **22.13+**, Git, npm, and a recent official Claude Code installation. Node's built-in SQLite may print an experimental warning on some versions; that is expected.
 
 ```sh
-cd /Users/vibhumaggarwal/Projects/crewline
+git clone https://github.com/vibhumaggarwal/crewline.git
+cd crewline
 npm install
 npm run dev
 ```
@@ -129,7 +128,7 @@ Keep `.agents/` private if it contains sensitive context. The worker commit tool
 4. No arbitrary terminal, file deletion tool, network fetch tool, package installer, diff review/merge UI, or automatic planner yet. The worker can list, read and write files, inspect Git, request tests/commit, persist memory, create handoffs, and request handoff commit integration.
 5. Task results and usage show the latest attempt. Events and final task files are retained, but a separate normalized run-attempt ledger and retention/compaction policy would be the next persistence improvement. File summaries include committed and uncommitted changes and are captured at run completion.
 6. One local bridge connects to one coordinator. Authentication refresh is delegated to Claude. Moving to a hosted control plane would require per-device pairing, TLS, revocable device credentials and remote authorization; do not expose this loopback server publicly.
-7. UI identity is currently the brief's Vibhum/personal workspace. There is no account system or settings editor.
+7. The sidebar identity is a fixed placeholder. There is no account system or settings editor.
 
 ## Verification
 
@@ -140,3 +139,11 @@ Official runtime reference: [Run Claude Code programmatically](https://code.clau
 ## Environment
 
 Optional `PORT` (default 4317), `CREWLINE_DATA` (default `.crewline` relative to the project folder), `CREWLINE_URL` (local coordinator URL for the bridge) and `CREWLINE_CLAUDE` (path to the official CLI, defaults to `claude`). Use the same data path in coordinator and bridge terminals. The executable override exists for installation differences and integration tests; production never automatically chooses the test fixture.
+
+## Latest verification
+
+The six automated tests cover filesystem boundaries, scheduling and recovery, persistent worktrees/memory, the HTTP/WebSocket/MCP bridge flow, and composer worker routing. Integration tests use a test-only Claude fixture; they do not establish real model execution.
+
+The September 30 polish pass fixes project-scoped task assignment, duplicate composer submissions, live task details for handoffs, same-project handoff recipients, mobile sidebar accessibility, and development hot reload. Browser checks covered setup, task navigation, disabled assignment, and mobile navigation.
+
+Claude Code was installed but `claude auth status` reported `loggedIn: false`. Run `claude auth login` in your terminal, then complete a real task to verify the remaining model boundary. A connected bridge alone does not establish Claude authentication.

@@ -41,6 +41,7 @@ import {
 import type { Agent, Approval, Project, Snapshot, Task } from "../shared/types";
 import "./style.css";
 import "./theme.css";
+import { commandRecipient } from "./workspace-state";
 import { WorkspaceOverview } from "./WorkspaceOverview";
 const empty: Snapshot = {
   projects: [],
@@ -153,7 +154,7 @@ function App() {
     document.documentElement.dataset.theme = theme;
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", theme === "light" ? "#f8f9fa" : "#111722");
+      ?.setAttribute("content", theme === "light" ? "#ffffff" : "#181817");
     try {
       localStorage.setItem("crewline-appearance", theme);
     } catch {}
@@ -172,12 +173,16 @@ function App() {
     [search, setSearch] = useState(""),
     [filter, setFilter] = useState("All workers"),
     [sidebar, setSidebar] = useState(false),
-    [selectedTask, setSelectedTask] = useState<Task | null>(null),
+    [selectedTaskSnapshot, setSelectedTask] = useState<Task | null>(null),
     [busy, setBusy] = useState(false),
     [memory, setMemory] = useState(""),
     [stream, setStream] = useState(false);
   const [command, setCommand] = useState(""),
     [commandAgent, setCommandAgent] = useState("");
+  const selectedTask =
+    state.tasks.find((t) => t.id === selectedTaskSnapshot?.id) ||
+    selectedTaskSnapshot;
+  const commandPending = useRef(false);
   const commandRef = useRef<HTMLTextAreaElement>(null);
   const initialSession = useRef<Promise<Snapshot> | null>(null);
   useEffect(() => {
@@ -210,7 +215,7 @@ function App() {
       dialog.removeEventListener("keydown", trap);
       previous?.focus();
     };
-  }, [modal, selectedTask]);
+  }, [modal, selectedTask?.id]);
   useEffect(() => {
     let source: EventSource | undefined;
     let disposed = false;
@@ -253,6 +258,7 @@ function App() {
         commandRef.current?.focus();
       }
       if (e.key === "Escape") {
+        setSidebar(false);
         setModal(null);
         setSelectedTask(null);
       }
@@ -280,19 +286,27 @@ function App() {
     (a) => a.status === "pending" && tasks.some((t) => t.id === a.taskId),
   );
   const agent = state.agents.find((a) => a.id === agentId);
+  const taskRecipients = agents.filter(
+    (a) =>
+      a.status === "ready" &&
+      a.workspace &&
+      (modal !== "handoff" ||
+        (a.id !== selectedTask?.agent &&
+          a.projectId === selectedTask?.projectId)),
+  );
+  const recipient = commandRecipient(agents, commandAgent, agent?.id);
   const current = agent ? activeTask(agent, state.tasks) : undefined;
-  const working = tasks.filter((t) => t.status === "RUNNING").length,
-    waiting = tasks.filter((t) =>
-      ["WAITING", "BLOCKED", "QUEUED"].includes(t.status),
-    ).length;
   const navigate = (p: string) => {
     setPage(p);
     setAgentId(null);
     setSidebar(false);
     setSearch("");
+    setFilter("All workers");
+    setCommandAgent("");
   };
   const viewAgent = (a: Agent) => {
     setAgentId(a.id);
+    setCommandAgent(a.id);
     setTab("Overview");
     setMemory(a.memory);
   };
@@ -313,24 +327,23 @@ function App() {
   const action = (path: string, body: unknown, success?: string) =>
     void act(path, body, success).catch(() => {});
   const runCommand = async () => {
-    const target = commandAgent || agents.find((a) => a.workspace)?.id;
-    if (!target) {
-      setModal("agent");
-      return;
-    }
-    if (!command.trim()) return;
+    if (busy || commandPending.current || !recipient || !command.trim()) return;
+    commandPending.current = true;
     try {
       await act(
         "tasks",
         {
-          agent: target,
+          agent: recipient.id,
           title: command.trim().slice(0, 300),
           description: command,
         },
         "Task added to the queue",
       );
       setCommand("");
-    } catch {}
+    } catch {
+    } finally {
+      commandPending.current = false;
+    }
   };
   const taskRows = (items: Task[]) =>
     items.length ? (
@@ -458,11 +471,17 @@ function App() {
         <textarea
           ref={commandRef}
           aria-label="Team command"
+          disabled={busy}
+          maxLength={20000}
           placeholder="Describe a task for your worker…"
           value={command}
           onChange={(e) => setCommand(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            if (
+              e.key === "Enter" &&
+              !e.shiftKey &&
+              !e.nativeEvent.isComposing
+            ) {
               e.preventDefault();
               void runCommand();
             }
@@ -475,14 +494,14 @@ function App() {
           </span>
           <select
             aria-label="Assign command to worker"
-            value={commandAgent}
+            value={recipient?.id || ""}
             onChange={(e) => setCommandAgent(e.target.value)}
           >
             <option value="">
               {agents.length ? "Select worker" : "No workers yet"}
             </option>
             {agents
-              .filter((a) => a.workspace)
+              .filter((a) => a.workspace && a.status === "ready")
               .map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
@@ -491,16 +510,32 @@ function App() {
           </select>
           <button
             className="send-button"
-            disabled={busy || !command.trim()}
+            disabled={busy || !recipient || !command.trim()}
             aria-label="Assign task"
             onClick={() => void runCommand()}
           >
-            <ArrowUpRight size={16} />
+            <>
+              {busy ? (
+                <Loader2 className="spin" size={16} />
+              ) : (
+                <ArrowUpRight size={16} />
+              )}
+            </>
           </button>
         </div>
       </div>
       <div className="command-hint">
-        <span>Runs in the selected worker’s worktree</span>
+        <span>
+          {!recipient
+            ? agents.length
+              ? "Select a ready worker to assign a task"
+              : "Create a worker to assign your first task"
+            : !state.bridge.connected
+              ? "Bridge offline · tasks will stay queued"
+              : !state.bridge.claude
+                ? "Claude Code unavailable · tasks will stay queued"
+                : `Assigning to ${recipient.name}`}
+        </span>
         <span>
           <kbd>⌘ K</kbd> to focus <span>·</span> <kbd>↵</kbd> to assign
         </span>
@@ -510,7 +545,9 @@ function App() {
   if (authenticated === null)
     return (
       <div className="login">
-        <div className="brand-mark">V</div>
+        <div className="brand-mark">
+          <Command size={20} />
+        </div>
         <Loader2 className="spin" size={20} />
         <p>Opening your workspace…</p>
       </div>
@@ -518,7 +555,9 @@ function App() {
   if (!authenticated)
     return (
       <div className="login">
-        <div className="brand-mark">V</div>
+        <div className="brand-mark">
+          <Command size={20} />
+        </div>
         <h1>Your team. One workspace.</h1>
         <p>Connect this browser to Crewline on your machine.</p>
         <div className="login-panel">
@@ -659,9 +698,9 @@ function App() {
             Settings
           </button>
           <div className="user">
-            <span>VA</span>
+            <span>You</span>
             <div>
-              Vibhum Aggarwal<small>Personal account</small>
+              Local workspace<small>This machine</small>
             </div>
             <MoreHorizontal size={18} />
           </div>
@@ -969,35 +1008,21 @@ function App() {
                       day: "numeric",
                     })}
                   </div>
-                  <h1>
-                    {page === "Home" || page === "Command Center"
-                      ? "Hello, Vibhum."
-                      : page}
-                  </h1>
+                  <h1>{page}</h1>
                   <p>
-                    {page === "Home" || page === "Command Center" ? (
-                      <>
-                        Your team. One place to begin.{" "}
-                        <span className="heading-summary">
-                          {working} working <span>·</span> {waiting} waiting{" "}
-                          <span>·</span> {approvals.length} needs you
-                        </span>
-                      </>
-                    ) : page === "Agents" ? (
-                      "Persistent workers. A clear responsibility for each."
-                    ) : page === "Tasks" ? (
-                      "Assign, monitor, and review worker tasks."
-                    ) : page === "Projects" ? (
-                      "Your repositories, connected to a dedicated team."
-                    ) : page === "Agent Messages" ? (
-                      "Clear handoffs between your workers."
-                    ) : page === "Usage" ? (
-                      "Runtime usage reported by completed Claude Code sessions."
-                    ) : page === "Settings" ? (
-                      "Your local workspace and runtime connection."
-                    ) : (
-                      "A live record of what your team is doing."
-                    )}
+                    {page === "Agents"
+                      ? "Persistent workers. A clear responsibility for each."
+                      : page === "Tasks"
+                        ? "Assign, monitor, and review worker tasks."
+                        : page === "Projects"
+                          ? "Your repositories, connected to a dedicated team."
+                          : page === "Agent Messages"
+                            ? "Clear handoffs between your workers."
+                            : page === "Usage"
+                              ? "Runtime usage reported by completed Claude Code sessions."
+                              : page === "Settings"
+                                ? "Your local workspace and runtime connection."
+                                : "A live record of what your team is doing."}
                   </p>
                 </div>
                 <div className="button-row">
@@ -1028,72 +1053,6 @@ function App() {
                   ) : null}
                 </div>
               </div>
-              {isCommandCenter && commandBar}
-              {["Home", "Command Center"].includes(page) && (
-                <>
-                  <div className="overview-strip">
-                    <div>
-                      <span className="stat-icon purple">
-                        <Users size={18} />
-                      </span>
-                      <span>
-                        <strong>{agents.length}</strong>
-                        <small>Total workers</small>
-                      </span>
-                    </div>
-                    <div>
-                      <span className="stat-icon green">
-                        <Activity size={18} />
-                      </span>
-                      <span>
-                        <strong>
-                          {working}
-                          <span className="stat-caption">live</span>
-                        </strong>
-                        <small>Working now</small>
-                      </span>
-                    </div>
-                    <div>
-                      <span className="stat-icon amber">
-                        <ShieldCheck size={18} />
-                      </span>
-                      <span>
-                        <strong>{approvals.length}</strong>
-                        <small>Needs your attention</small>
-                      </span>
-                    </div>
-                    <div>
-                      <span className="stat-icon muted">
-                        <CheckCheck size={18} />
-                      </span>
-                      <span>
-                        <strong>
-                          {tasks.filter((t) => t.status === "COMPLETED").length}
-                        </strong>
-                        <small>Tasks completed</small>
-                      </span>
-                    </div>
-                  </div>
-                  {approvals.map(approvalCard)}
-                  {!state.bridge.connected && (
-                    <div className="connection-banner">
-                      <span className="connection-glyph">
-                        <Terminal size={20} />
-                      </span>
-                      <div>
-                        <strong>Bring your local workspace online</strong>
-                        <p>
-                          Connect the runtime to give your workers a place to
-                          work.
-                        </p>
-                      </div>
-                      <button onClick={() => setModal("connect")}>
-                        Connect runtime <ArrowRight size={14} />
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
               {["Home", "Command Center", "Agents"].includes(page) && (
                 <>
                   <div className="section-heading workers-heading">
@@ -1597,6 +1556,11 @@ function App() {
                     : "Waiting for your local runtime"}
                 </div>
                 <p className="fine-print">
+                  {state.bridge.claude
+                    ? "Claude Code is installed. Bridge connection does not verify Claude sign-in; run claude auth status in your terminal."
+                    : "Claude Code has not been detected by the bridge."}
+                </p>
+                <p className="fine-print">
                   The bridge uses your existing Claude Code authentication.
                   Crewline never reads or copies Claude credentials.
                 </p>
@@ -1841,28 +1805,24 @@ function App() {
                       name="agent"
                       required
                       defaultValue={
-                        modal === "handoff"
-                          ? ""
-                          : commandAgent ||
-                            agent?.id ||
-                            agents.find((a) => a.workspace)?.id
+                        modal === "handoff" ? "" : recipient?.id || ""
                       }
                     >
                       <option value="">Choose a worker</option>
-                      {agents
-                        .filter(
-                          (a) =>
-                            a.workspace &&
-                            (modal !== "handoff" ||
-                              a.id !== selectedTask?.agent),
-                        )
-                        .map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name} — {a.role}
-                          </option>
-                        ))}
+                      {taskRecipients.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name} — {a.role}
+                        </option>
+                      ))}
                     </select>
                   </label>
+                  {!taskRecipients.length && (
+                    <p className="fine-print">
+                      {modal === "handoff"
+                        ? "Create another worker in this project to receive the handoff."
+                        : "Create a ready worker in this project before assigning a task."}
+                    </p>
+                  )}
                   <label>
                     Task
                     <input
@@ -1919,7 +1879,7 @@ function App() {
                   )}
                   <button
                     className="primary full"
-                    disabled={busy || !agents.some((a) => a.workspace)}
+                    disabled={busy || !taskRecipients.length}
                   >
                     Assign task <ArrowRight size={15} />
                   </button>
@@ -2045,7 +2005,10 @@ function Empty({
     </div>
   );
 }
-createRoot(document.getElementById("root")!).render(
+const root =
+  import.meta.hot?.data.root ?? createRoot(document.getElementById("root")!);
+if (import.meta.hot) import.meta.hot.data.root = root;
+root.render(
   <React.StrictMode>
     <App />
   </React.StrictMode>,

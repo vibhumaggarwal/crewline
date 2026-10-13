@@ -69,9 +69,21 @@ export function WorkspaceOverview({
               )}
             </span>
           </div>
-          <button onClick={onAgent}>
+          <button
+            onClick={
+              !state.bridge.connected
+                ? onConnect
+                : readyProject
+                  ? onAgent
+                  : onProject
+            }
+          >
             <Plus size={14} />
-            New worker
+            {!state.bridge.connected
+              ? "Connect runtime"
+              : readyProject
+                ? "New worker"
+                : "Add repository"}
           </button>
         </div>
         <div
@@ -115,7 +127,7 @@ export function WorkspaceOverview({
               )}
             </button>
           ))}
-          <div className="workbench-search">
+          <div className="workbench-search" hidden={!agents.length}>
             <Search size={13} />
             <input
               aria-label="Search workspace workers"
@@ -201,18 +213,34 @@ export function WorkspaceOverview({
                   <Folder size={24} />
                 </div>
                 <h2>
-                  {readyProject
-                    ? "Create your first worker"
-                    : "Add a repository to get started"}
+                  {!state.bridge.connected
+                    ? "Connect your local runtime"
+                    : readyProject
+                      ? "Create your first worker"
+                      : "Add a repository to get started"}
                 </h2>
                 <p>
-                  {readyProject
-                    ? "Give a worker a responsibility and assign its first task. Each worker gets a separate Git worktree."
-                    : "Connect a local Git repository, then create workers to run Claude Code in separate worktrees."}
+                  {!state.bridge.connected
+                    ? "Start the local bridge to connect repositories and run workers on your machine."
+                    : readyProject
+                      ? "Give a worker a responsibility and assign its first task. Each worker gets a separate Git worktree."
+                      : "Connect a local Git repository, then create workers to run Claude Code in separate worktrees."}
                 </p>
-                <button onClick={readyProject ? onAgent : onProject}>
+                <button
+                  onClick={
+                    !state.bridge.connected
+                      ? onConnect
+                      : readyProject
+                        ? onAgent
+                        : onProject
+                  }
+                >
                   <Plus size={14} />
-                  {readyProject ? "New worker" : "Add repository"}
+                  {!state.bridge.connected
+                    ? "Connect runtime"
+                    : readyProject
+                      ? "New worker"
+                      : "Add repository"}
                 </button>
                 <div className="empty-shortcut">
                   <kbd>⌘ K</kbd>
@@ -278,7 +306,9 @@ export function WorkspaceOverview({
           </h2>
           <div className="inspector-kv">
             <span>Provider</span>
-            <strong>Claude Code</strong>
+            <strong>
+              {state.bridge.claude ? "Claude Code" : "Not detected"}
+            </strong>
           </div>
           <div className="inspector-kv">
             <span>Bridge</span>
@@ -288,6 +318,9 @@ export function WorkspaceOverview({
             </strong>
           </div>
           {state.bridge.version && <code>{state.bridge.version}</code>}
+          <p className="runtime-auth-note">
+            Bridge status does not verify Claude sign-in.
+          </p>
           <button className="inspector-link" onClick={onConnect}>
             Connection details
             <ArrowUpRight size={12} />

@@ -1263,3 +1263,47 @@ legend,
     font-size: 17px;
   }
 }
+
+.workbench-search[hidden] {
+  display: none;
+}
+.runtime-auth-note {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.command-box textarea:disabled {
+  opacity: 0.65;
+}
+@media (max-width: 1100px) {
+  .workbench-tabs {
+    flex-wrap: wrap;
+  }
+  .workbench-search:not([hidden]) {
+    display: flex;
+    flex-basis: 100%;
+    margin: 0 0 10px;
+  }
+}
+main.workspace-main,
+.command-dock {
+  flex-shrink: 0;
+}
+.workspace-inspector .runtime-auth-note {
+  font-size: 10px;
+  line-height: 1.5;
+}
+@media (max-width: 800px) {
+  .sidebar:not(.open) {
+    visibility: hidden;
+  }
+  .sidebar.open {
+    visibility: visible;
+  }
+}
+.empty {
+  border-style: solid;
+  border-color: var(--line);
+  background: transparent;
+  border-radius: 6px;
+}
